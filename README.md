@@ -4,7 +4,9 @@ Vertical‑slice MLOps prototype (FastAPI) implementing a Model Registry: model 
 
 # MLOps Model Registry & Deployment Platform — Submission Notes
 
-## What this submission covers
+## Role Level: G12
+
+## Problem Statement
 
 A vertical slice covering the full lifecycle: register a model, register and
 approve versions, deploy an approved version, retry a failed deployment,
@@ -57,13 +59,11 @@ Implemented:
 - Loading, empty, and error states on every panel
 
 Engineering practices demonstrated:
-- Typed request/response models with validation (Pydantic)
-- Consistent error handling — 404 for missing resources, 409 for governance
-  conflicts, both with clear messages, not stack traces
-- Auto-generated API documentation at `/docs` (OpenAPI)
-- Automated tests (`test_main.py`) — 19 tests covering the registry,
-  lifecycle governance, deployment, idempotency, retry, rollback, and
-  monitoring, mapped to the brief's acceptance scenarios
+- Pydantic typed request/response models and validation
+- Consistent error handling: 404 for missing resources, 409 for governance/state conflicts, 422 for validation errors with clear messages
+- Auto‑generated OpenAPI docs at /docs
+- Automated tests: test_main.py covering registry, lifecycle governance, idempotency, retry, rollback, and monitoring (19 tests)
+- ADRs documenting in‑memory storage choice and idempotency design
 
 ## How to run
 
@@ -78,25 +78,20 @@ pytest -v                      # run the tests
 Then open `index.html` directly in a browser (it talks to
 `http://127.0.0.1:8000` — make sure the backend is running first).
 
-## What a fuller implementation would add
+## Known Limitations
+- In‑memory persistence: data lost on restart; no transactions or concurrency guarantees (ADR-001)
+- Idempotency in memory: keys lost on restart and no DB uniqueness/race protection (ADR-002)
+- No real deployment executor: failures are simulated via simulate_failure flag
+- Monitoring is simulated for some metrics; not production telemetry
+- Frontend is a POC in plain HTML/JS; Angular migration planned but not implemented
 
-Being transparent about scope — see `ADR.docx` and `Architecture_Doc.docx`
-for the reasoning behind each of these trade-offs:
-
-- **Persistence:** SQLAlchemy + SQLite/PostgreSQL with Alembic migrations,
-  replacing the in-memory store (ADR-001).
-- **Idempotency keys with a TTL and a DB uniqueness constraint**, instead of
-  an unbounded in-memory dict with no race-condition protection (ADR-002).
-- **Angular frontend:** the current UI is plain HTML/JS as a proof of
-  concept; production target is Angular + TypeScript + Angular Material +
-  RxJS, with component/service tests (Karma/Jasmine).
-- **Real monitoring:** OpenTelemetry + Prometheus, replacing the simulated
-  latency/throughput/quality/drift values with live telemetry.
-- **Async deployment execution** via a worker/queue (Celery + Redis), so
-  deployments don't block the API and can genuinely fail asynchronously
-  rather than via a `simulate_failure` flag.
-- **Auth (OAuth2/JWT + RBAC)**, containerisation (Docker Compose), and CI
-  (GitHub Actions running the test suite on push).
+## Future Improvements
+- Migrate to SQLAlchemy + PostgreSQL/SQLite with Alembic and repository interface
+- Persist idempotency keys with TTL and DB uniqueness constraint to handle races
+- Add async worker/queue (Celery + Redis) for real deployment execution and retries
+- Integrate OpenTelemetry + Prometheus for real metrics and alerting
+- Implement Angular frontend with component/service tests and RBAC authentication (OAuth2/JWT)
+- Add CI GitHub Actions, Docker Compose packaging, and containerized integration tests
 
 ## A note on scope and honesty
 
