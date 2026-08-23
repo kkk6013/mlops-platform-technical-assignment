@@ -1,11 +1,12 @@
 # Use official Python 3.11 image as requested in the assignment
-FROM python:3.9.5-slim
+FROM python:3.11-slim
 
 # Set the working directory inside the container
 WORKDIR /app
 
-# Install the required packages
-RUN pip install --no-cache-dir fastapi "uvicorn[standard]" pydantic
+# Copy the requirements file and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code into the container
 COPY . /app
