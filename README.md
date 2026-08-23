@@ -1,102 +1,128 @@
-# mlops-platform-technical-assignment
-Vertical‑slice MLOps prototype (FastAPI) implementing a Model Registry: model &amp; version CRUD, lifecycle governance (DRAFT→APPROVED→PRODUCTION), idempotent deployments, retry/rollback, in‑memory storage (documented ADRs), OpenAPI docs, Pytest tests, and a plain HTML/JS proof‑of‑concept UI.
+# **MLOps Model Registry — Submission Notes**
 
 
-# MLOps Model Registry & Deployment Platform — Submission Notes
 
-## Role Level: G12
+### What this submission covers
 
-## Problem Statement
+Given the time available, I focused on delivering a clean, functional vertical slice rather than broad, incomplete coverage. This slice covers the Model Registry, Lifecycle Governance, and Deployment Management, proving the core state machine and API logic.
 
-A vertical slice covering the full lifecycle: register a model, register and
-approve versions, deploy an approved version, retry a failed deployment,
-roll back a succeeded one, and view monitoring data — end to end, through
-both the API and the UI.
 
-Implemented:
 
-**Model Registry**
-- `GET  /health` — liveness check
-- `POST /models` — create a model
-- `GET  /models` — list all models
-- `GET  /models/{model_id}` — fetch one model (404 if missing)
-- `POST /models/{model_id}/versions` — register a version (auto-numbered, starts as `DRAFT`)
-- `GET  /models/{model_id}/versions` — list versions
-- `POST /models/{model_id}/versions/{version_id}/approve` — approve a version
-- `POST /models/{model_id}/versions/{version_id}/promote` — promote to a lifecycle
-  stage; `STAGING`/`PRODUCTION` require the version to be approved first (409 otherwise)
+1\. Backend Implementation (FastAPI)
 
-**Deployment Management**
-- `POST /deployments` — deploy an approved version to an environment.
-  Unapproved versions are rejected (409). Accepts an optional
-  `idempotency_key`; a repeat request with the same key returns the original
-  deployment instead of creating a new one.
-- `GET  /deployments` / `GET /deployments/{id}` — list / fetch deployments
-- `POST /deployments/{id}/retry` — retry a `FAILED` deployment (409 otherwise)
-- `POST /deployments/{id}/rollback` — roll back a `SUCCEEDED` deployment (409 otherwise)
-- Each deployment runs through a simulated state machine —
-  `REQUESTED → VALIDATING → DEPLOYING → SUCCEEDED/FAILED` — and every
-  transition is recorded in the deployment's event history. There is no real
-  deployment executor in this slice, so `simulate_failure` (a boolean on the
-  request) is the hook used to deterministically exercise the FAILED →
-  retry path, rather than mutating internal state in tests.
+Model Registry: POST and GET endpoints for models and versions.
 
-**Monitoring**
-- `GET /models/{model_id}/metrics` — returns latency, throughput, error
-  rate, quality score, drift score, availability, last successful inference
-  time, and an overall status (`HEALTHY` / `DEGRADED` / `NO_DATA`).
-  `error_rate`, `availability`, and `last_successful_inference` are computed
-  from this model's real deployment history. `latency`, `throughput`,
-  `quality_score`, and `drift_score` are **simulated** (deterministically
-  seeded by model_id, since no live inference traffic exists in this slice)
-  — flagged here and in the Architecture Doc so it isn't mistaken for real
-  telemetry.
 
-**UI (index.html)**
-- Model inventory, version management (add/approve/promote)
-- Deployment view: deploy a version, see status, retry/rollback actions
-- Monitoring dashboard for a selected model
-- Loading, empty, and error states on every panel
 
-Engineering practices demonstrated:
-- Pydantic typed request/response models and validation
-- Consistent error handling: 404 for missing resources, 409 for governance/state conflicts, 422 for validation errors with clear messages
-- Auto‑generated OpenAPI docs at /docs
-- Automated tests: test_main.py covering registry, lifecycle governance, idempotency, retry, rollback, and monitoring (19 tests)
-- ADRs documenting in‑memory storage choice and idempotency design
+Lifecycle Governance: POST /approve and POST /promote endpoints with state validation (e.g., ensuring a version cannot be promoted to PRODUCTION without prior approval).
 
-## How to run
 
-- Ran on Python 3.9.5
 
-```bash
-pip install fastapi "uvicorn[standard]" pytest httpx
-uvicorn main:app --reload      # then open http://127.0.0.1:8000/docs
-pytest -v                      # run the tests
-```
+Deployment Management: POST /deployments with state tracking (REQUESTED, SUCCEEDED, FAILED, ROLLED\_BACK).
 
-Then open `index.html` directly in a browser (it talks to
-`http://127.0.0.1:8000` — make sure the backend is running first).
 
-## Known Limitations
-- In‑memory persistence: data lost on restart; no transactions or concurrency guarantees (ADR-001)
-- Idempotency in memory: keys lost on restart and no DB uniqueness/race protection (ADR-002)
-- No real deployment executor: failures are simulated via simulate_failure flag
-- Monitoring is simulated for some metrics; not production telemetry
-- Frontend is a POC in plain HTML/JS; Angular migration planned but not implemented
 
-## Future Improvements
-- Migrate to SQLAlchemy + PostgreSQL/SQLite with Alembic and repository interface
-- Persist idempotency keys with TTL and DB uniqueness constraint to handle races
-- Add async worker/queue (Celery + Redis) for real deployment execution and retries
-- Integrate OpenTelemetry + Prometheus for real metrics and alerting
-- Implement Angular frontend with component/service tests and RBAC authentication (OAuth2/JWT)
-- Add CI GitHub Actions, Docker Compose packaging, and containerized integration tests
+Idempotency: The deployment endpoint accepts and processes idempotency keys to safely handle duplicate deployment requests.
 
-## A note on scope and honesty
 
-The parts here are implemented and understood fully — governance rules,
-state machine, idempotency, and the monitoring split between real and
-simulated data were all deliberate decisions, documented in the ADR. What's
-out of scope is named explicitly rather than glossed over.
+
+Retry \& Rollback: Endpoints that validate current deployment states before allowing a retry or rollback transition.
+
+
+
+2\. Frontend Implementation (Vanilla HTML/JS)
+
+While the prompt requested an Angular GUI, web frontend frameworks are currently outside my core stack. Rather than delivering an incomplete or broken Angular application, I built a lightweight, vanilla JavaScript/HTML prototype. This successfully demonstrates that the REST API works end-to-end, surfacing dynamic state changes, handling CORS, and displaying clear error messages from the backend.
+
+
+
+
+
+### Engineering practices demonstrated
+
+Typed request/response models with validation (Pydantic) — invalid input is rejected automatically with clear errors.
+
+
+
+Consistent error handling — invalid state transitions (e.g., rolling back a failed deployment) return a 409 Conflict, and missing resources return 404 Not Found.
+
+
+
+Idempotency design — ensuring safe API retries for deployment creation.
+
+
+
+Auto-generated API documentation — available at /docs (OpenAPI).
+
+
+
+Automated tests (test\_main.py) — covering the core happy paths and governance rules for the Model Registry.
+
+
+
+
+
+### How to run
+
+1\. Start the Backend
+
+
+
+Bash
+
+pip install fastapi "uvicorn\[standard]" pytest httpx
+
+uvicorn main:app --reload      
+
+The interactive API documentation will be available at http://127.0.0.1:8000/docs
+
+
+
+2\. Run the Tests
+
+
+
+Bash
+
+pytest -v                      
+
+3\. View the Frontend
+
+Simply open index.html in any modern web browser. It is configured to automatically point to the local FastAPI server on port 8000.
+
+
+
+
+
+### What a fuller implementation would add (with more time)
+
+I want to be transparent about scope. The following are deliberately not implemented here, and I'd approach them as follows in a production scenario:
+
+
+
+Persistence: Replace the in-memory store (\_models and \_deployments dicts) with SQLAlchemy + PostgreSQL and Alembic migrations. In-memory was chosen to keep the slice focused on API and state logic.
+
+
+
+Monitoring: Add the GET /models/{model\_id}/metrics endpoint to expose latency, throughput, error rate, drift, and quality.
+
+
+
+Test Coverage Expansion: While the Model Registry is tested, I would add Pytest fixtures to clear the in-memory state between tests, and write tests to cover the idempotency and deployment state machine logic.
+
+
+
+Angular Integration: Rebuild the vanilla UI prototype using Angular, TypeScript, and RxJS as requested in the target architecture.
+
+
+
+Containerisation \& CI: Add a Dockerfile, Docker Compose, and a GitHub Actions workflow to run the tests on push.
+
+
+
+
+
+### A note on scope and honesty
+
+I built the parts I could implement well and architect soundly in the time available. I prioritized robust backend validation, proper HTTP status codes, and a working end-to-end prototype over checking every box with fragile code. I'd rather submit a functional, well-reasoned core that I can stand behind.
 
